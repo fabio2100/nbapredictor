@@ -1,56 +1,6 @@
 {
     "data": [
-        {
-            "id": 18446819,
-            "date": "2025-10-21",
-            "season": 2025,
-            "status": "Final",
-            "status_state": "final",
-            "period": 6,
-            "time": "Final",
-            "postseason": false,
-            "postponed": false,
-            "home_team_score": 125,
-            "visitor_team_score": 124,
-            "datetime": "2025-10-21T23:30:00.000Z",
-            "home_q1": 27,
-            "home_q2": 24,
-            "home_q3": 24,
-            "home_q4": 29,
-            "home_ot1": 11,
-            "home_ot2": 10,
-            "home_ot3": null,
-            "home_timeouts_remaining": 1,
-            "home_in_bonus": true,
-            "visitor_q1": 30,
-            "visitor_q2": 27,
-            "visitor_q3": 22,
-            "visitor_q4": 25,
-            "visitor_ot1": 11,
-            "visitor_ot2": 9,
-            "visitor_ot3": null,
-            "visitor_timeouts_remaining": 0,
-            "visitor_in_bonus": false,
-            "ist_stage": null,
-            "home_team": {
-                "id": 21,
-                "conference": "West",
-                "division": "Northwest",
-                "city": "Oklahoma City",
-                "name": "Thunder",
-                "full_name": "Oklahoma City Thunder",
-                "abbreviation": "OKC"
-            },
-            "visitor_team": {
-                "id": 11,
-                "conference": "West",
-                "division": "Southwest",
-                "city": "Houston",
-                "name": "Rockets",
-                "full_name": "Houston Rockets",
-                "abbreviation": "HOU"
-            }
-        },
+        
         {
             "id": 18446820,
             "date": "2025-10-21",

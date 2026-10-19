@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 
 type Prediction = 'HOME' | 'AWAY'
+type StoredPrediction = 'home' | 'visitor' | 'no_realizado'
 
 interface Team {
   id: number
@@ -22,8 +23,19 @@ interface Match {
   visitor_team: Team
 }
 
-const STORAGE_KEY = 'wc2026_predictions'
 const REFRESH_INTERVAL = 60_000 // 60 seconds
+
+const normalizeStoredPrediction = (value?: string): Prediction | undefined => {
+  if (value === 'home') return 'HOME'
+  if (value === 'visitor') return 'AWAY'
+  return undefined
+}
+
+const mapPredictionToStored = (value?: Prediction): StoredPrediction => {
+  if (value === 'HOME') return 'home'
+  if (value === 'AWAY') return 'visitor'
+  return 'no_realizado'
+}
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: 'Programado',
@@ -32,7 +44,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 function isEditable(statusState: string): boolean {
-  return statusState?.toLowerCase() === 'scheduled'
+  return statusState?.toLowerCase() !== 'final'
 }
 
 function getActualResult(match: Match): Prediction | null {
@@ -215,9 +227,25 @@ export default function Predictor() {
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<number, Prediction>>({})
   const [savedPredictions, setSavedPredictions] = useState<Record<number, Prediction>>({})
+  const [scoreSummary, setScoreSummary] = useState({ aciertos: 0, desaciertos: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const fetchScoreSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/predictions/score')
+      if (!res.ok) return
+
+      const data = (await res.json()) as { aciertos?: number; desaciertos?: number }
+      setScoreSummary({
+        aciertos: Number(data.aciertos ?? 0),
+        desaciertos: Number(data.desaciertos ?? 0),
+      })
+    } catch {
+      setScoreSummary({ aciertos: 0, desaciertos: 0 })
+    }
+  }, [])
 
   const fetchMatches = useCallback(async () => {
     try {
@@ -226,33 +254,56 @@ export default function Predictor() {
       if (data.error) {
         setError(data.error)
       } else {
-        // La nueva API devuelve { data: [...] }
-        setMatches(data.data ?? [])
+        const nextMatches = data.data ?? []
+        setMatches(nextMatches)
         setLastUpdated(new Date())
         setError(null)
+
+        try {
+          await fetch('/api/predictions', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ matches: nextMatches }),
+          })
+
+          await fetchScoreSummary()
+        } catch {
+          // no-op: se intenta sincronizar en segundo plano
+        }
       }
     } catch {
       setError('No se pudo cargar la lista de partidos')
     } finally {
       setLoading(false)
     }
+  }, [fetchScoreSummary])
+
+  const fetchSavedPredictions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/predictions')
+      if (!res.ok) return
+
+      const data = (await res.json()) as Array<{ matchId: number; user_prediction?: string }>
+      const parsed = Object.fromEntries(
+        data
+          .map((item) => [item.matchId, normalizeStoredPrediction(item.user_prediction)] as const)
+          .filter(([, prediction]) => prediction !== undefined)
+      ) as Record<number, Prediction>
+
+      setPredictions(parsed)
+      setSavedPredictions(parsed)
+    } catch {
+      // ignore fetch errors for initial load
+    }
   }, [])
 
   useEffect(() => {
-    // Load saved predictions from localStorage
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        const parsed = JSON.parse(stored) as Record<number, Prediction>
-        setPredictions(parsed)
-        setSavedPredictions(parsed)
-      }
-    } catch {
-      // Ignore parse errors
-    }
-
+    fetchScoreSummary()
+    fetchSavedPredictions()
     fetchMatches()
-  }, [fetchMatches])
+  }, [fetchScoreSummary, fetchSavedPredictions, fetchMatches])
 
   // Auto-refresh while there are live matches
   useEffect(() => {
@@ -263,13 +314,35 @@ export default function Predictor() {
     return () => clearInterval(interval)
   }, [matches, fetchMatches])
 
-  const handlePrediction = (matchId: number, prediction: Prediction) => {
+  const handlePrediction = async (matchId: number, prediction: Prediction) => {
     const match = matches.find((item) => item.id === matchId)
     if (!match || !isEditable(match.status_state)) return
 
+    const payload = {
+      matchId,
+      home_team_score: match.home_team_score ?? 0,
+      visitor_team_score: match.visitor_team_score ?? 0,
+      status_state: match.status_state,
+      user_prediction: mapPredictionToStored(prediction),
+    }
+
+    try {
+      await fetch('/api/predictions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      await fetchScoreSummary()
+    } catch {
+      setError('No se pudo guardar el pronóstico')
+      return
+    }
+
     setPredictions((prev) => {
       const updated = { ...prev, [matchId]: prediction }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
       setSavedPredictions(updated)
       return updated
     })
@@ -288,16 +361,10 @@ export default function Predictor() {
   }, [loading])
 
   // ── Points calculation ──────────────────────────────────────────────────────
-  const finishedMatches = matches.filter((m) => m.status_state?.toLowerCase() === 'final')
-  const predictedFinished = finishedMatches.filter(
-    (m) => savedPredictions[m.id] !== undefined
-  )
-  const points = predictedFinished.reduce((acc, match) => {
-    const result = getActualResult(match)
-    return result && result === savedPredictions[match.id] ? acc + 1 : acc
-  }, 0)
-
   const totalPredictions = Object.keys(predictions).length
+
+  const aciertos = scoreSummary.aciertos || 0
+  const desaciertos = scoreSummary.desaciertos || 0
 
   // ── Group matches by date ──────────────────────────────────────────────────
   const groupedByStage = matches.reduce<Record<string, Match[]>>((acc, match) => {
@@ -309,14 +376,11 @@ export default function Predictor() {
 
   const firstNonFinishedMatchId = matches.find((m) => m.status_state?.toLowerCase() !== 'final')?.id
   // ── Score board background color ───────────────────────────────────────────
-  const misses = predictedFinished.length - points
   let scoreBoardBg = 'from-emerald-500 to-teal-700'
-  if (predictedFinished.length > 0) {
-    if (points === misses) {
-      scoreBoardBg = 'from-amber-400 to-amber-600'
-    } else if (misses > points) {
-      scoreBoardBg = 'from-rose-500 to-red-700'
-    }
+  if (desaciertos > aciertos) {
+    scoreBoardBg = 'from-rose-500 to-red-700'
+  } else if (aciertos === desaciertos) {
+    scoreBoardBg = 'from-amber-400 to-amber-600'
   }
 
 
@@ -389,14 +453,11 @@ export default function Predictor() {
           Tu puntaje
         </p>
         <p className="text-6xl font-black tabular-nums leading-none">
-          {predictedFinished.length > 0 ? `${points} - ${predictedFinished.length - points}` : '0 - 0'}
+          {`${aciertos} - ${desaciertos}`}
         </p>
         <p className="text-2xl opacity-80 mt-2">
-          {predictedFinished.length > 0
-            ? `${((points / predictedFinished.length)).toFixed(3)}`
-            : 'Los partidos finalizados mostrarán tus puntos aquí'}
+          Aciertos · Desaciertos
         </p>
-  
       </div>
 
       {/* Actions bar */}
@@ -420,22 +481,37 @@ export default function Predictor() {
       </div>
 
       {/* Matches grouped por fecha */}
-      <div className="space-y-3">
+      <div className="space-y-10">
         {Object.keys(groupedByStage)
           .sort()
-          .flatMap((dateKey) =>
-            groupedByStage[dateKey].map((match) => (
-              <MatchCard
-                key={match.id}
-                match={match}
-                prediction={predictions[match.id]}
-                savedPrediction={savedPredictions[match.id]}
-                onPredict={handlePrediction}
-                ref={match.id === firstNonFinishedMatchId ? firstNonFinishedRef : undefined}
-                isFirstNonFinished={match.id === firstNonFinishedMatchId}
-              />
-            ))
-          )}
+          .map((dateKey) => {
+            const d = new Date(dateKey)
+            const header = d.toLocaleDateString('es-AR', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })
+            return (
+              <section key={dateKey}>
+                <h2 className="text-base font-bold text-zinc-700 dark:text-zinc-300 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+                  {header}
+                </h2>
+                <div className="space-y-3">
+                  {groupedByStage[dateKey].map((match) => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      prediction={predictions[match.id]}
+                      savedPrediction={savedPredictions[match.id]}
+                      onPredict={handlePrediction}
+                      ref={match.id === firstNonFinishedMatchId ? firstNonFinishedRef : undefined}
+                      isFirstNonFinished={match.id === firstNonFinishedMatchId}
+                    />
+                  ))}
+                </div>
+              </section>
+            )
+          })}
       </div>
     </div>
   )
