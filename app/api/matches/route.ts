@@ -28,9 +28,9 @@ export async function GET() {
     const today = new Date()
     const pad = (n: number) => n.toString().padStart(2, '0')
     const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    const dates = Array.from({ length: 4 }, (_, i) => {
+    const dates = Array.from({ length: 5 }, (_, i) => {
       const dt = new Date(today)
-      dt.setDate(today.getDate() + i)
+      dt.setDate(today.getDate() + i - 2)
       return formatDate(dt)
     })
 

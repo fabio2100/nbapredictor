@@ -365,6 +365,8 @@ export default function Predictor() {
 
   const aciertos = scoreSummary.aciertos || 0
   const desaciertos = scoreSummary.desaciertos || 0
+  const totalResultados = aciertos + desaciertos
+  const porcentajeAcierto = totalResultados > 0 ? (aciertos / totalResultados).toFixed(3) : '0.000'
 
   // ── Group matches by date ──────────────────────────────────────────────────
   const groupedByStage = matches.reduce<Record<string, Match[]>>((acc, match) => {
@@ -456,7 +458,7 @@ export default function Predictor() {
           {`${aciertos} - ${desaciertos}`}
         </p>
         <p className="text-2xl opacity-80 mt-2">
-          Aciertos · Desaciertos
+          {porcentajeAcierto}
         </p>
       </div>
 
