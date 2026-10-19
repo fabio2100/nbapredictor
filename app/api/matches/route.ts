@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server'
+import sampleData from '../../../responseexample.json'
 
 export async function GET() {
+  const isDevelopmentMode = String(process.env.DEVELOPMENT_MODE ?? '').toLowerCase() === 'true'
+
+  if (isDevelopmentMode) {
+    return NextResponse.json(sampleData, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=30',
+      },
+    })
+  }
+
   const apiKey = process.env.BALLDONTLIE_API_KEY
 
   if (!apiKey || apiKey === 'your_api_key_here') {

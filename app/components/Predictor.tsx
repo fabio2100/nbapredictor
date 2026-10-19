@@ -32,7 +32,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 function isEditable(statusState: string): boolean {
-  return statusState?.toLowerCase() !== 'final'
+  return statusState?.toLowerCase() === 'scheduled'
 }
 
 function getActualResult(match: Match): Prediction | null {
@@ -264,6 +264,9 @@ export default function Predictor() {
   }, [matches, fetchMatches])
 
   const handlePrediction = (matchId: number, prediction: Prediction) => {
+    const match = matches.find((item) => item.id === matchId)
+    if (!match || !isEditable(match.status_state)) return
+
     setPredictions((prev) => {
       const updated = { ...prev, [matchId]: prediction }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
@@ -393,17 +396,7 @@ export default function Predictor() {
             ? `${((points / predictedFinished.length)).toFixed(3)}`
             : 'Los partidos finalizados mostrarán tus puntos aquí'}
         </p>
-        <div className="mt-4">
-          <div className="bg-white/20 rounded-full h-3 overflow-hidden">
-            <div 
-              className="bg-white h-full transition-all duration-300"
-              style={{ width: `${(finishedMatches.length / 104) * 100}%` }}
-            />
-          </div>
-          <p className="text-sm font-semibold mt-2 opacity-90">
-            {finishedMatches.length}/104 partidos finalizados ({((finishedMatches.length / 104) * 100).toFixed(1)}%)
-          </p>
-        </div>
+  
       </div>
 
       {/* Actions bar */}
@@ -427,37 +420,22 @@ export default function Predictor() {
       </div>
 
       {/* Matches grouped por fecha */}
-      <div className="space-y-10">
+      <div className="space-y-3">
         {Object.keys(groupedByStage)
           .sort()
-          .map((dateKey) => {
-            const d = new Date(dateKey)
-            const header = d.toLocaleDateString('es-AR', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })
-            return (
-              <section key={dateKey}>
-                <h2 className="text-base font-bold text-zinc-700 dark:text-zinc-300 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-700">
-                  {header}
-                </h2>
-                <div className="space-y-3">
-                  {groupedByStage[dateKey].map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      match={match}
-                      prediction={predictions[match.id]}
-                      savedPrediction={savedPredictions[match.id]}
-                      onPredict={handlePrediction}
-                      ref={match.id === firstNonFinishedMatchId ? firstNonFinishedRef : undefined}
-                      isFirstNonFinished={match.id === firstNonFinishedMatchId}
-                    />
-                  ))}
-                </div>
-              </section>
-            )
-          })}
+          .flatMap((dateKey) =>
+            groupedByStage[dateKey].map((match) => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                prediction={predictions[match.id]}
+                savedPrediction={savedPredictions[match.id]}
+                onPredict={handlePrediction}
+                ref={match.id === firstNonFinishedMatchId ? firstNonFinishedRef : undefined}
+                isFirstNonFinished={match.id === firstNonFinishedMatchId}
+              />
+            ))
+          )}
       </div>
     </div>
   )
