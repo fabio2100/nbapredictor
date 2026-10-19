@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pronosticador Mundial 2026",
-  description: "Pronosticá los partidos de la Copa del Mundo 2026 y seguí tu puntaje en tiempo real",
+  title: "Pronosticador nba",
+  description: "Pronosticá los partidos de la NBA y seguí tu puntaje en tiempo real",
 };
 
 export default function RootLayout({

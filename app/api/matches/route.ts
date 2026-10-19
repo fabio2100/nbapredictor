@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const apiKey = process.env.FOOTBALL_DATA_API_KEY
+  const apiKey = process.env.BALLDONTLIE_API_KEY
 
   if (!apiKey || apiKey === 'your_api_key_here') {
     return NextResponse.json(
@@ -14,15 +14,25 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(
-      'https://api.football-data.org/v4/competitions/WC/matches?season=2026',
-      {
-        headers: { 'X-Auth-Token': apiKey },
-        // Evitar el Data Cache de Next.js para que cada request al servidor
-        // siempre vaya a football-data.org y no sirva una copia interna obsoleta
-        cache: 'no-store',
-      }
-    )
+    const today = new Date()
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const dates = Array.from({ length: 4 }, (_, i) => {
+      const dt = new Date(today)
+      dt.setDate(today.getDate() + i)
+      return formatDate(dt)
+    })
+
+    const params = new URLSearchParams()
+    params.append('seasons[]', '2026')
+    params.append('seasons[]', '2027')
+    dates.forEach((d) => params.append('dates[]', d))
+
+    const endpoint = `https://api.balldontlie.io/v1/games?${params.toString()}`
+
+    const res = await fetch(endpoint, {
+      headers: { Authorization: apiKey },
+    })
 
     if (!res.ok) {
       const body = await res.text()
