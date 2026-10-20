@@ -23,6 +23,12 @@ interface Match {
   visitor_team: Team
 }
 
+function parseLocalDateFromYmd(ymd: string): Date {
+  const [year, month, day] = ymd.split('-').map(Number)
+  if (!year || !month || !day) return new Date(ymd)
+  return new Date(year, month - 1, day)
+}
+
 const REFRESH_INTERVAL = 60_000 // 60 seconds
 
 const normalizeStoredPrediction = (value?: string): Prediction | undefined => {
@@ -487,7 +493,7 @@ export default function Predictor() {
         {Object.keys(groupedByStage)
           .sort()
           .map((dateKey) => {
-            const d = new Date(dateKey)
+            const d = parseLocalDateFromYmd(dateKey)
             const header = d.toLocaleDateString('es-AR', {
               weekday: 'long',
               day: 'numeric',
