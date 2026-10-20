@@ -44,7 +44,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 function isEditable(statusState: string): boolean {
-  return statusState?.toLowerCase() !== 'final'
+  return statusState?.toLowerCase() === 'scheduled'
 }
 
 function getActualResult(match: Match): Prediction | null {

@@ -54,6 +54,7 @@ export async function GET() {
     }
 
     const data = await res.json()
+    console.log(data)
     return NextResponse.json(data, {
       headers: {
         // La CDN de Vercel (s-maxage) y el browser (max-age) cachean 30 s;

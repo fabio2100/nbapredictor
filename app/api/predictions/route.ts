@@ -25,6 +25,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { matchId, home_team_score, visitor_team_score, user_prediction, status_state } = body
+    const normalizedStatusState = String(status_state ?? '').toLowerCase()
 
     if (
       typeof matchId !== 'number' ||
@@ -37,6 +38,21 @@ export async function POST(request: Request) {
     }
 
     const collection = await getPredictionCollection()
+
+    const existingMatch = await collection.findOne(
+      { matchId },
+      { projection: { status_state: 1 } }
+    )
+
+    const persistedStatusState = String(existingMatch?.status_state ?? normalizedStatusState).toLowerCase()
+
+    if (persistedStatusState !== 'scheduled') {
+      return NextResponse.json(
+        { error: 'Solo se puede editar la predicción cuando el partido está en estado scheduled' },
+        { status: 409 }
+      )
+    }
+
     const result = await collection.updateOne(
       { matchId },
       {
@@ -44,7 +60,7 @@ export async function POST(request: Request) {
           matchId,
           home_team_score,
           visitor_team_score,
-          status_state,
+          status_state: persistedStatusState,
           user_prediction,
         },
       },
