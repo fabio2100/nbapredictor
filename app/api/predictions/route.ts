@@ -104,7 +104,6 @@ export async function PUT(request: Request) {
             },
             $setOnInsert: {
               matchId,
-              status_state: statusState,
               user_prediction: 'no_realizado',
             },
           },
